@@ -1,0 +1,156 @@
+/* 数据库工作台的本地样式：密度、层次与 hover 细节。 */
+.dbw-app {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	background: var(--dsw-alias-bg-base, transparent);
+	color: var(--dsw-alias-label-primary, inherit);
+	font-size: 12px;
+}
+.dbw-topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 10px 12px 6px;
+}
+.dbw-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.dbw-logo {
+	width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+	font-size: 15px;
+	background: color-mix(in srgb, var(--dsw-alias-button-primary-fill, #1677ff) 12%, transparent);
+	color: var(--dsw-alias-button-primary-fill, #1677ff);
+}
+.dbw-title { display: block; font-size: 13px; font-weight: 650; letter-spacing: 0.01em; line-height: 1.2; }
+.dbw-subtitle { display: block; font-size: 10.5px; color: var(--dsw-alias-label-secondary, #888); margin-top: 2px; }
+.dbw-connbar { display: flex; align-items: center; gap: 6px; padding: 0 12px 8px; }
+.dbw-statusline {
+	display: flex; align-items: center; gap: 6px;
+	padding: 0 12px 8px; font-size: 11px; color: var(--dsw-alias-label-secondary, #888);
+}
+.dbw-statusline .dbw-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dbw-workarea { flex: 1; min-height: 0; display: flex; }
+.dbw-tree {
+	display: flex; flex-direction: column; min-height: 0;
+	border-right: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 55%, transparent);
+}
+.dbw-tree-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; }
+.dbw-section-label {
+	font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+	color: var(--dsw-alias-label-secondary, #888); white-space: nowrap;
+}
+.dbw-tree-body { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 10px; }
+.dbw-tree-body::-webkit-scrollbar { width: 8px; }
+.dbw-tree-body::-webkit-scrollbar-thumb { background: var(--dsh-scrollbar-thumb, rgb(0 0 0 / 20%)); border-radius: 8px; }
+
+.dbw-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.dbw-main-head {
+	display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+	padding: 10px 12px 4px;
+}
+.dbw-table-name { display: block; font-size: 13px; font-weight: 650; line-height: 1.2; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbw-table-path { display: block; font-size: 10.5px; color: var(--dsw-alias-label-secondary, #888); margin-top: 2px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbw-main .ant-tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 12px; }
+.dbw-main .ant-tabs-nav { margin-bottom: 8px; }
+.dbw-main .ant-tabs-content-holder { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
+
+.dbw-app .ant-table-thead > tr > th {
+	background: color-mix(in srgb, var(--dsw-alias-label-primary, #000) 3%, transparent) !important;
+	color: var(--dsw-alias-label-secondary, #888);
+	font-size: 10px !important;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	font-weight: 600;
+}
+.dbw-app .ant-table-tbody > tr > td {
+	font-family: ui-monospace, Consolas, "SF Mono", monospace;
+	font-size: 11px;
+}
+.dbw-app .ant-table-tbody > tr:nth-child(even) > td {
+	background: color-mix(in srgb, var(--dsw-alias-label-primary, #000) 2.5%, transparent);
+}
+.dbw-app .ant-table-tbody > tr:hover > td {
+	background: color-mix(in srgb, var(--dsw-alias-button-primary-fill, #1677ff) 6%, transparent) !important;
+}
+.dbw-app .ant-tree .ant-tree-node-content-wrapper { border-radius: 6px; height: 24px; line-height: 24px; }
+.dbw-app .ant-tree .ant-tree-node-selected {
+	background: color-mix(in srgb, var(--dsw-alias-button-primary-fill, #1677ff) 12%, transparent) !important;
+	color: var(--dsw-alias-button-primary-fill, #1677ff);
+	font-weight: 600;
+}
+.dbw-app .ant-splitter-bar { background: var(--dsw-alias-border-l1, rgb(0 0 0 / 8%)); }
+.dbw-app .ant-empty { margin: 22px 0; }
+.dbw-sql textarea { font-family: ui-monospace, Consolas, "SF Mono", monospace; font-size: 12px; }
+.dbw-empty-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.dbw-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+.dbw-ok { color: var(--dsw-alias-state-success-primary, #2f8e5f); }
+.dbw-bad { color: var(--dsw-alias-state-error-primary, #c0392b); }
+.dbw-main .ant-tabs-content-holder { display: flex; flex-direction: column; }
+.dbw-main .ant-tabs-tabpane { height: 100%; }
+.dbw-grid-wrap { flex: 1; min-height: 0; overflow: auto; }
+.dbw-grid-wrap .ant-table-thead > tr > th { position: sticky; top: 0; z-index: 2; }
+.dbw-rownum { color: var(--dsw-alias-label-secondary, #888); font-size: 10px; }
+.dbw-main {
+	margin: 4px 8px 8px 0;
+	border: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--dsw-alias-bg-layer-1, #fff);
+}
+.dbw-tree {
+	margin: 4px 6px 8px 8px;
+	border: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	border-radius: 12px;
+	overflow: hidden;
+}
+.dbw-main .ant-tabs { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 12px; }
+.dbw-main .ant-tabs-content-holder { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.dbw-main .ant-tabs-content { flex: 1; min-height: 0; display: flex; }
+.dbw-main .ant-tabs-tabpane { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dbw-footer {
+	display: flex; align-items: center; gap: 10px;
+	padding: 4px 12px; border-top: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	font-size: 10px; color: var(--dsw-alias-label-secondary, #888);
+	background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 70%, transparent);
+}
+.dbw-footer-grow { flex: 1; }
+/* 宿主的 tab 面板是 flex，这里把 antd App 与我们的根节点接上高度链。 */
+.ant-app:has(> .dbw-host) { height: 100%; display: flex; flex-direction: column; }
+.dbw-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dbw-app { flex: 1; min-height: 0; }
+.dbw-sql { height: 100%; overflow: auto; padding-right: 2px; }
+.dbw-grid-wrap { overflow: auto; }
+.dbw-tree-body .ant-tree { font-size: 12px; }
+.dbw-tree-body .ant-tree-node-content-wrapper { width: 100%; overflow: hidden; display: flex; align-items: center; gap: 4px; }
+.dbw-tree-body .ant-tree-iconEle { flex: none; }
+.dbw-tree-body .ant-tree-title { flex: 1; min-width: 0; }
+.dbw-tree-body .ant-tree-title { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.dbw-tree-body .ant-tree-node-content-wrapper:hover .ant-tree-title { color: var(--dsw-alias-button-primary-fill, #1677ff); }
+.dbw-tree-body .ant-tree-title { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbw-tree-body .ant-tree-switcher { flex: none; }
+.dbw-workarea { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.dbw-workarea > .dbw-main { margin: 4px 8px 8px; }
+.dbw-tree {
+	width: 100%; min-width: 0;
+	margin: 4px 0 8px 8px;
+	border: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	border-radius: 12px;
+	overflow: hidden;
+	display: flex; flex-direction: column; min-height: 0;
+	background: color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 55%, transparent);
+}
+.dbw-tree-drawer { width: 100%; flex: 1 1 auto; margin: 0; border: 0; border-radius: 0; height: 100%; }
+.dbw-main-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.dbw-main-title > div { min-width: 0; }
+.dbw-splitter { flex: 1; min-height: 0; display: flex; }
+.dbw-splitter > .ant-splitter-panel { display: flex; min-height: 0; }
+.dbw-splitter .dbw-tree { margin: 4px 0 8px 8px; }
+.dbw-splitter .dbw-main { flex: 1; margin: 4px 8px 8px 6px; }
+.dbw-splitter .ant-splitter-bar { width: 6px !important; }
+.dbw-splitter .ant-splitter-bar:hover { background: color-mix(in srgb, var(--dsw-alias-button-primary-fill, #1677ff) 35%, transparent); }
+/* 只在当前页签显示内容：我们的 flex 规则会盖掉 antd 的 hidden 类。 */
+.dbw-main .ant-tabs-tabpane-hidden { display: none !important; }
+.dbw-main .ant-tabs-tabpane { overflow: auto; }

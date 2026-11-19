@@ -1,0 +1,6 @@
+node_modules/
+*.tgz
+demo.db
+dist/
+preview/bundle.js
+preview/*.png

@@ -1,0 +1,65 @@
+{
+  "name": "zero-db-tool",
+  "version": "1.0.0",
+  "description": "DSH 数据库工作台：连接下拉 + 对象树 + 数据/结构/SQL，SQLite/PostgreSQL/MySQL，只读优先，六个 sql_* 工具",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.1-rc.2 <0.3.0-0"
+  },
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./client/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "client",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "assets/icon.png"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepack": "npm run build",
+    "prepare": "npm run build",
+    "build:client": "node scripts/build-client.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "dependencies": {
+    "mysql2": "^3.24.4",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "esbuild": "^0.28.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "antd": "^5.27.0",
+    "@ant-design/icons": "^5.6.0",
+    "jsdom": "^27.0.0"
+  }
+}

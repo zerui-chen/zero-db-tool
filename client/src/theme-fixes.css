@@ -1,0 +1,29 @@
+/* 原页面为 Console 的暖暗主题写死过两处深色（SQL 编辑区），在 DSH 的浅色主题下会突兀。
+ * 这里只做主题化覆盖，不改原样式文件，便于对照上游。 */
+.dbw-scope .database-query-panel textarea {
+	background: var(--canvas-soft);
+	color: var(--ink);
+}
+.dbw-scope .database-query-panel textarea:focus {
+	border-color: var(--accent);
+	outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+	box-shadow: none;
+}
+.dbw-scope .database-query-panel textarea::placeholder { color: var(--muted); }
+/* 右侧栏通常只有 400–700px：标题与操作挤在一行会把「导出」裁掉。
+ * 窄容器下让操作区独占一行并允许换行（原页面在 Console 宽详情栏里不需要）。 */
+@container (max-width: 720px) {
+	.dbw-scope .database-connections-header {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 8px;
+		padding: 12px;
+	}
+	.dbw-scope .database-header-actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+	.dbw-scope .database-header-actions .btn {
+		flex: 1 1 auto;
+	}
+}

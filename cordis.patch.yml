@@ -1,0 +1,4 @@
+# zero-db-tool bundle patch（dsh.bundle.patch：顶层数组 loader patch entries）
+- insert:
+    - id: db-workbench
+      name: zero-db-tool
