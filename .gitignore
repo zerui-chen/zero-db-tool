@@ -4,3 +4,4 @@ demo.db
 dist/
 preview/bundle.js
 preview/*.png
+.npmrc

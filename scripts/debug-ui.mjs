@@ -1,0 +1,30 @@
+import { createRequire } from "node:module";
+const require = createRequire("C:/Users/Administrator/AppData/Roaming/npm/node_modules/@deepseek-ai/dsh/node_modules/");
+const WebSocket = require("ws");
+const token = process.argv[2];
+const targets = await (await fetch("http://127.0.0.1:9222/json")).json();
+const page = targets.find((t) => t.type === "page");
+const socket = new WebSocket(page.webSocketDebuggerUrl);
+const pending = new Map(); let nextId = 0;
+const errs = [];
+socket.on("message", (d) => {
+	const m = JSON.parse(String(d));
+	if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
+	if (m.method === "Runtime.exceptionThrown") errs.push("EXC " + (m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text));
+	if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") errs.push("ERR " + m.params.args.map(a=>a.value??a.description??"").join(" ").slice(0,300));
+});
+await new Promise((r) => socket.on("open", r));
+const send = (method, params = {}) => new Promise((r) => { const id = ++nextId; pending.set(id, r); socket.send(JSON.stringify({ id, method, params })); });
+const evaluate = async (e) => (await send("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.result?.value;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+await send("Page.enable"); await send("Runtime.enable");
+await send("Page.navigate", { url: "http://127.0.0.1:4099/?token=" + token });
+await wait(8000);
+await evaluate("(() => { const b=[...document.querySelectorAll('button')].find(x=>x.innerText.trim()==='继续'); b&&b.click(); })()");
+await wait(300);
+await evaluate("(() => { const b=document.querySelector('[aria-label=\"打开右侧边栏\"]'); b&&b.click(); })()");
+await wait(1500);
+console.log("text", String(await evaluate("document.body.innerText")).slice(0, 500));
+console.log("app", await evaluate("!!document.querySelector('.dbw-app')"));
+console.log("errors", errs.slice(0, 5).join("\n"));
+socket.close();
