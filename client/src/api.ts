@@ -33,6 +33,9 @@ export type TablePage = {
 	hasNext: boolean;
 };
 export type QueryResult = { connection: string; sql: string; columns: string[]; rows: Array<Record<string, unknown>>; rowCount: number; truncated: boolean };
+export type IndexSummary = { name: string; columns: string[]; unique: boolean; type?: string; definition?: string };
+export type ExecuteResult = { statementCount: number; affectedRows: number; results: Array<{ operation: "INSERT" | "UPDATE"; affectedRows: number }> };
+export type ExecuteResponse = { needsConfirmation?: boolean; challengeId?: string; statements?: string[]; result?: ExecuteResult };
 export type ConnectionDocument = { schemaVersion: 1; exportedAt: string; connections: Connection[] };
 
 const BASE = "/zero-db-tool/api";
@@ -65,6 +68,11 @@ export const api = {
 		`/connections/${encodeURIComponent(name)}/browse?table=${encodeURIComponent(table)}&page=${page}&pageSize=${pageSize}${database ? `&database=${encodeURIComponent(database)}` : ""}`),
 	query: (name: string, sql: string, database?: string) => request<{ result: QueryResult }>(
 		`/connections/${encodeURIComponent(name)}/query`, { method: "POST", body: JSON.stringify({ sql, maxRows: 500, ...(database ? { database } : {}) }) }),
+	indexes: (name: string, table: string, database?: string) => request<{ indexes: IndexSummary[] }>(
+		`/connections/${encodeURIComponent(name)}/indexes?table=${encodeURIComponent(table)}${database ? `&database=${encodeURIComponent(database)}` : ""}`),
+	execute: (name: string, sql: string, opts?: { database?: string; confirmationId?: string }) => request<ExecuteResponse>(
+		`/connections/${encodeURIComponent(name)}/execute`,
+		{ method: "POST", body: JSON.stringify({ sql, ...(opts?.database ? { database: opts.database } : {}), ...(opts?.confirmationId ? { confirmationId: opts.confirmationId } : {}) }) }),
 	exportAll: () => request<{ document: ConnectionDocument }>("/export"),
 	importAll: (document: unknown, conflict: "skip" | "overwrite") => request<{ result: { imported: number; updated: number; skipped: number } }>(
 		"/import", { method: "POST", body: JSON.stringify({ document, conflict }) }),

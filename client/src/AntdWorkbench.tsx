@@ -13,7 +13,7 @@ import {
 	EditOutlined, EyeOutlined, MoreOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
 	ReloadOutlined, SearchOutlined, TableOutlined, ThunderboltOutlined,
 } from "@ant-design/icons";
-import { api, type ColumnSummary, type Connection, type DbEngine, type TablePage, type TableSummary } from "./api";
+import { api, type ColumnSummary, type Connection, type DbEngine, type IndexSummary, type TablePage, type TableSummary } from "./api";
 
 const { Text } = Typography;
 const HISTORY_KEY = "zero-db-tool.sql-history";
@@ -59,7 +59,7 @@ function download(name: string, text: string, type?: string): void {
 }
 
 export function AntdWorkbench(): React.JSX.Element {
-	const { message } = App.useApp();
+	const { message, modal } = App.useApp();
 	const { token } = theme.useToken();
 	const [connections, setConnections] = useState<Connection[]>([]);
 	const [activeName, setActiveName] = useState("");
@@ -73,6 +73,8 @@ export function AntdWorkbench(): React.JSX.Element {
 	const [mode, setMode] = useState<"data" | "schema" | "sql">("data");
 	const [sql, setSql] = useState("");
 	const [result, setResult] = useState<TableResult | null>(null);
+	const [indexes, setIndexes] = useState<IndexSummary[]>([]);
+
 	const [loading, setLoading] = useState("");
 	const [search, setSearch] = useState("");
 	const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
@@ -91,6 +93,18 @@ export function AntdWorkbench(): React.JSX.Element {
 	const connectMode = Form.useWatch("mode", form) ?? "parameters";
 
 	const active = useMemo(() => connections.find((item) => item.name === activeName), [connections, activeName]);
+
+	const pickDatabase = useCallback(async (value: string) => {
+		if (!active) return;
+		setDatabase(value); setTable(""); setPage(null); setIndexes([]);
+		setLoading("catalog");
+		try {
+			const payload = await api.catalog(active.name, value || undefined);
+			setTablesByDb((current) => ({ ...current, [value]: payload.tables ?? [] }));
+		} catch (cause) {
+			message.error(cause instanceof Error ? cause.message : String(cause));
+		} finally { setLoading(""); }
+	}, [active, message]);
 
 	useEffect(() => {
 		try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]") as string[]); } catch { setHistory([]); }
@@ -137,6 +151,9 @@ export function AntdWorkbench(): React.JSX.Element {
 			setPage(payload.result);
 			setTable(tableName);
 			setDatabase(db);
+			void api.indexes(name, tableName, db || undefined)
+				.then((indexPayload) => setIndexes(indexPayload.indexes ?? []))
+				.catch(() => setIndexes([]));
 		} catch (cause) {
 			message.error(cause instanceof Error ? cause.message : String(cause));
 		} finally { setLoading(""); }
@@ -146,7 +163,7 @@ export function AntdWorkbench(): React.JSX.Element {
 		const connection = connections.find((item) => item.name === name);
 		if (!connection) return;
 		setActiveName(name);
-		setPage(null); setResult(null); setTablesByDb({}); setDatabase(""); setTable(""); setSearch("");
+		setPage(null); setResult(null); setTablesByDb({}); setDatabase(""); setTable(""); setSearch(""); setIndexes([]);
 		setLoading("catalog");
 		try {
 			const payload = await api.catalog(name, connection.database ?? undefined);
@@ -256,13 +273,43 @@ export function AntdWorkbench(): React.JSX.Element {
 		}
 	}
 
+	const readOnlySql = /^\s*(select|pragma|explain|show|describe|desc|with)\b/i.test(sql);
+
 	async function runSql() {
 		if (!active || sql.trim() === "") return;
 		setLoading("sql");
 		setResult(null);
 		try {
-			const payload = await api.query(active.name, sql, database || undefined);
-			setResult(payload.result);
+			if (readOnlySql) {
+				const payload = await api.query(active.name, sql, database || undefined);
+				setResult(payload.result);
+				pushHistory(sql);
+				return;
+			}
+			const first = await api.execute(active.name, sql, { database: database || undefined });
+			if (first.needsConfirmation && first.challengeId) {
+				const confirmed = await new Promise<boolean>((resolve) => {
+					modal.confirm({
+						title: "确认执行 UPDATE？",
+						width: 560,
+						content: (
+							<div>
+								<Text type="secondary">这条语句会修改数据，确认后才执行：</Text>
+								<pre className="dbw-confirm-sql">{sql.trim()}</pre>
+							</div>
+						),
+						okText: "执行",
+						cancelText: "取消",
+						onOk: () => resolve(true),
+						onCancel: () => resolve(false),
+					});
+				});
+				if (!confirmed) return;
+				const second = await api.execute(active.name, sql, { database: database || undefined, confirmationId: first.challengeId });
+				if (second.result) message.success("执行成功：影响 " + second.result.affectedRows + " 行");
+			} else if (first.result) {
+				message.success("执行成功：影响 " + first.result.affectedRows + " 行");
+			}
 			pushHistory(sql);
 		} catch (cause) {
 			message.error(cause instanceof Error ? cause.message : String(cause));
@@ -331,6 +378,15 @@ export function AntdWorkbench(): React.JSX.Element {
 		return keys.map((key) => ({ title: key, dataIndex: key, key, ellipsis: true, render: (value: unknown) => <span onDoubleClick={() => copyValue(value)}>{cell(value)}</span> }));
 	}, [result]);
 
+	const indexOrigin = (value?: string): string => ({ c: "索引", u: "唯一约束", pk: "主键" }[value ?? ""] ?? value ?? "—");
+
+	const indexColumns: ColumnsType<IndexSummary> = [
+		{ title: "名称", dataIndex: "name", key: "name", width: 168, ellipsis: true },
+		{ title: "列", dataIndex: "columns", key: "columns", render: (value: string[]) => <span className="dbw-nowrap">{(value ?? []).join(", ") || "—"}</span> },
+		{ title: "唯一", dataIndex: "unique", key: "unique", width: 64, render: (value: boolean) => (value ? <Tag color="blue">唯一</Tag> : "—") },
+		{ title: "类型", dataIndex: "type", key: "type", width: 92, render: (value?: string) => indexOrigin(value) },
+	];
+
 	const schemaColumns: ColumnsType<ColumnSummary> = [
 		{ title: "字段", dataIndex: "name", key: "name", width: 130 },
 		{ title: "类型", dataIndex: "type", key: "type", render: (value: string) => value || "未知类型" },
@@ -347,6 +403,21 @@ export function AntdWorkbench(): React.JSX.Element {
 			label: <Space size={4}><TableOutlined />数据</Space>,
 			children: (
 				<Flex vertical gap={8} style={{ height: "100%" }}>
+					<div className="dbw-toolbar">
+						{databases.length > 1 ? (
+							<Select
+								size="small" value={database || undefined} placeholder="数据库" style={{ width: 132 }}
+								onChange={(value) => void pickDatabase(value)}
+								options={databases.map((item) => ({ value: item, label: item === "" ? "(默认库)" : item }))}
+							/>
+						) : null}
+						<Select
+							size="small" showSearch allowClear value={table || undefined} placeholder="选择表或视图"
+							style={{ flex: 1, minWidth: 140 }} optionFilterProp="label"
+							onChange={(value?: string) => { if (value) void loadTable(activeName, database, value); }}
+							options={(tablesByDb[database] ?? []).map((item) => ({ value: item.name, label: item.name }))}
+						/>
+					</div>
 					<div className="dbw-grid-wrap">
 					<Table
 						size="small" bordered sticky rowKey={(_, index) => String(index)} columns={dataColumns}
@@ -370,8 +441,18 @@ export function AntdWorkbench(): React.JSX.Element {
 			key: "schema",
 			label: <Space size={4}><ProfileOutlined />结构</Space>,
 			children: (
-				<Table size="small" bordered pagination={false} rowKey="name" dataSource={page?.columns ?? []} columns={schemaColumns}
-					locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从左侧选择表或视图" /> }} />
+				<Flex vertical gap={12} style={{ height: "100%", overflow: "auto" }}>
+					<div>
+						<Text strong>字段</Text>
+						<Table size="small" bordered pagination={false} rowKey="name" dataSource={page?.columns ?? []} columns={schemaColumns}
+							locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="从左侧或上方选择表或视图" /> }} />
+					</div>
+					<div>
+						<Text strong>索引</Text>
+						<Table size="small" bordered tableLayout="fixed" pagination={false} rowKey="name" dataSource={indexes} columns={indexColumns}
+							locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={table ? "这张表没有索引" : "选择表后显示索引"} /> }} />
+					</div>
+				</Flex>
 			),
 		},
 		{
@@ -387,7 +468,7 @@ export function AntdWorkbench(): React.JSX.Element {
 					<Flex justify="space-between" align="center" gap={8} wrap>
 						<Space size={6}>
 							<Button type="primary" size="small" icon={<PlayCircleOutlined />} loading={loading === "sql"} disabled={!sql.trim()} onClick={() => void runSql()}>执行</Button>
-							<Text type="secondary" style={{ fontSize: 11 }}>只读单条 · Ctrl+Enter</Text>
+							<Text type="secondary" style={{ fontSize: 11 }}>SELECT 只读 · INSERT 直通 · UPDATE 逐次确认 · DELETE/DDL 拒绝</Text>
 						</Space>
 						<Space size={0}>
 							<Tooltip title="清空"><Button size="small" type="text" icon={<ClearOutlined />} onClick={() => { setSql(""); setResult(null); }} /></Tooltip>

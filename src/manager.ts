@@ -8,6 +8,7 @@ import {
 	DbConnectionError,
 	type DbConnectionRegistry,
 	type DbConnectionSummary,
+	type DbIndexSummary,
 	type DbQueryHandle,
 	type DbTablePage,
 	type DbTableSummary,
@@ -145,7 +146,7 @@ export class WorkbenchService {
 	}
 
 	/** Execute an INSERT/UPDATE batch. Callers own the UPDATE approval gate. */
-	async execute(connection: string, sql: string): Promise<{ statementCount: number; affectedRows: number; results: Array<{ operation: "INSERT" | "UPDATE"; affectedRows: number }> }> {
+	async execute(connection: string, sql: string, database?: string): Promise<{ statementCount: number; affectedRows: number; results: Array<{ operation: "INSERT" | "UPDATE"; affectedRows: number }> }> {
 		const statements = splitStatements(sql ?? "");
 		if (statements.length === 0) throw new SqlGuardError("DB_INVALID_CONFIG", "sql is empty");
 		const kinds = statements.map(assertWriteStatement);
@@ -153,7 +154,7 @@ export class WorkbenchService {
 			(async () => {
 				const results: Array<{ operation: "INSERT" | "UPDATE"; affectedRows: number }> = [];
 				for (let index = 0; index < statements.length; index += 1) {
-					const affectedRows = await this.withReconnect(connection, () => this.registry.executeWrite(connection, statements[index]!));
+					const affectedRows = await this.withReconnect(connection, () => this.registry.executeWrite(connection, statements[index]!, database));
 					results.push({ operation: kinds[index]!, affectedRows });
 				}
 				return {
@@ -165,6 +166,12 @@ export class WorkbenchService {
 			SQL_EXEC_TIMEOUT_MS,
 			() => this.registry.evict(connection),
 		);
+	}
+
+	/** Indexes for one table (read-only metadata). */
+	async indexes(connection: string, table: string, database?: string): Promise<DbIndexSummary[]> {
+		if (!table || table.trim() === "") throw new SqlGuardError("DB_INVALID_CONFIG", "未选择表：请先刷新表目录再选择表或视图");
+		return this.withTimeout(this.registry.listIndexes(connection, table, database), SQL_QUERY_TIMEOUT_MS);
 	}
 
 	/** Whether a batch needs human approval before it may run. */

@@ -2,12 +2,33 @@
  * 工作台 HTTP API（挂载在 DSH webServer 的 /zero-db-tool/api 前缀），供右侧栏使用。
  * 成功 { ok: true, ... }；失败 { ok: false, error: { code, message } }。
  */
+import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { DbConnectionError, type DbConnectionInput } from "./connections.js";
 import { WorkbenchService } from "./manager.js";
-import { SqlGuardError } from "./sql-guard.js";
+import { SqlGuardError, assertWriteStatement, splitStatements } from "./sql-guard.js";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const WRITE_CHALLENGE_TTL_MS = 2 * 60_000;
+
+type WriteChallenge = { connection: string; hash: string; expiresAt: number };
+const pendingWrites = new Map<string, WriteChallenge>();
+
+function sqlHash(sql: string): string {
+	return createHash("sha256").update(sql.trim()).digest("hex");
+}
+
+function takeChallenge(id: string, connection: string, sql: string): void {
+	const now = Date.now();
+	for (const [key, value] of pendingWrites) if (value.expiresAt <= now) pendingWrites.delete(key);
+	const challenge = pendingWrites.get(id);
+	if (!challenge) throw new SqlGuardError("DB_CONFIRMATION_REQUIRED", "确认已过期，请重新执行 UPDATE");
+	if (challenge.connection !== connection || challenge.hash !== sqlHash(sql)) {
+		pendingWrites.delete(id);
+		throw new SqlGuardError("DB_CONFIRMATION_REQUIRED", "确认与当前语句不匹配，请重新执行 UPDATE");
+	}
+	pendingWrites.delete(id);
+}
 
 export type HttpOptions = {
 	trustedHosts: string[];
@@ -139,7 +160,7 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse, s
 			return;
 		}
 
-		const itemMatch = /^\/api\/connections\/([^/]+)(?:\/(test|catalog|browse|query))?$/.exec(path);
+		const itemMatch = /^\/api\/connections\/([^/]+)(?:\/(test|catalog|browse|query|indexes|execute))?$/.exec(path);
 		if (itemMatch) {
 			const name = decodeURIComponent(itemMatch[1]!);
 			const action = itemMatch[2];
@@ -165,6 +186,34 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse, s
 				const page = Number(query.get("page") ?? "1");
 				const pageSize = Number(query.get("pageSize") ?? "50");
 				send(res, 200, { ok: true, result: await service.browse(name, table, page, pageSize, database) });
+				return;
+			}
+			if (method === "GET" && action === "indexes") {
+				const database = query.get("database") ?? undefined;
+				const table = (query.get("table") ?? "").trim();
+				if (table === "") throw new SqlGuardError("DB_INVALID_CONFIG", "未选择表：请先刷新表目录再选择表或视图");
+				send(res, 200, { ok: true, indexes: await service.indexes(name, table, database) });
+				return;
+			}
+			if (method === "POST" && action === "execute") {
+				const body = await readJson(req);
+				const sql = String(body.sql ?? "");
+				const database = typeof body.database === "string" && body.database !== "" ? body.database : undefined;
+				const statements = splitStatements(sql);
+				if (statements.length === 0) throw new SqlGuardError("DB_INVALID_CONFIG", "sql is empty");
+				// 只放行 INSERT / UPDATE；DELETE、DDL、事务等在这里就被拒绝。
+				const kinds = statements.map((statement) => assertWriteStatement(statement));
+				const needsApproval = kinds.includes("UPDATE");
+				const confirmationId = String(body.confirmationId ?? "");
+				if (needsApproval && confirmationId === "") {
+					const challengeId = randomUUID();
+					pendingWrites.set(challengeId, { connection: name, hash: sqlHash(sql), expiresAt: Date.now() + WRITE_CHALLENGE_TTL_MS });
+					send(res, 200, { ok: true, needsConfirmation: true, challengeId, statements, kinds, database });
+					return;
+				}
+				if (needsApproval) takeChallenge(confirmationId, name, sql);
+				const result = await service.execute(name, sql, database);
+				send(res, 200, { ok: true, result });
 				return;
 			}
 			if (method === "POST" && action === "query") {

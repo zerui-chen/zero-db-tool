@@ -101,6 +101,7 @@ export type DbConnectionImportResult = {
 };
 
 export type DbTableSummary = { name: string; type: "table" | "view"; schema?: string };
+export type DbIndexSummary = { name: string; columns: string[]; unique: boolean; type?: string; definition?: string };
 export type DbColumnSummary = { name: string; type: string; nullable: boolean; primaryKey: boolean };
 export type DbTablePage = {
 	connection: string;
@@ -725,6 +726,69 @@ export class DbConnectionRegistry {
 		};
 	}
 
+	async listIndexes(name: string, requestedTable: string, selectedDatabase?: string): Promise<DbIndexSummary[]> {
+		const config = this.getConfig(name);
+		const tables = await this.listTables(name, selectedDatabase);
+		const table = tables.find((candidate) => (candidate.schema ? `${candidate.schema}.${candidate.name}` : candidate.name) === requestedTable);
+		if (!table) throw new DbConnectionError("DB_INVALID_CONFIG", `table or view "${requestedTable}" does not exist`);
+		const escapedName = config.engine === "mysql"
+			? `\`${table.name.replaceAll("\`", "\`\`")}\``
+			: `"${table.name.replaceAll('"', '""')}"`;
+		const identifier = config.engine === "mysql" && table.schema
+			? `\`${table.schema.replaceAll("\`", "\`\`")}\`.\`${table.name.replaceAll("\`", "\`\`")}\``
+			: escapedName;
+		if (config.engine === "sqlite") {
+			const rows = await this.queryWithReconnect(name, (handle) => handle.query(`PRAGMA index_list(${escapedName})`), selectedDatabase);
+			const indexes: DbIndexSummary[] = [];
+			for (const row of rows) {
+				const indexName = String(row.name ?? "");
+				if (indexName === "") continue;
+				const quoted = `"${indexName.replaceAll('"', '""')}"`;
+				const info = await this.queryWithReconnect(name, (handle) => handle.query(`PRAGMA index_info(${quoted})`), selectedDatabase);
+				indexes.push({
+					name: indexName,
+					columns: info.map((column) => String(column.name ?? "")).filter(Boolean),
+					unique: Number(row.unique ?? 0) === 1,
+					...(typeof row.origin === "string" ? { type: row.origin } : {}),
+				});
+			}
+			return indexes;
+		}
+		if (config.engine === "postgres") {
+			const literal = table.name.replaceAll("'", "''");
+			const rows = await this.queryWithReconnect(name, (handle) => handle.query(
+				`SELECT i.relname AS name, ix.indisunique AS is_unique, pg_get_indexdef(ix.indexrelid) AS definition,
+					(SELECT array_agg(a.attname ORDER BY k.ord)
+					 FROM unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord)
+					 JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum) AS columns
+				 FROM pg_class t JOIN pg_index ix ON t.oid = ix.indrelid JOIN pg_class i ON i.oid = ix.indexrelid
+				 WHERE t.relname = '${literal}' AND t.relkind = 'r'`,
+			), selectedDatabase);
+			return rows.map((row) => ({
+				name: String(row.name ?? ""),
+				columns: Array.isArray(row.columns) ? (row.columns as unknown[]).map(String) : [],
+				unique: row.is_unique === true || String(row.is_unique) === "t",
+				...(typeof row.definition === "string" ? { definition: row.definition } : {}),
+			}));
+		}
+		const rows = await this.queryWithReconnect(name, (handle) => handle.query(`SHOW INDEX FROM ${identifier}`), selectedDatabase);
+		const grouped = new Map<string, { columns: Array<{ seq: number; name: string }>; unique: boolean; type?: string }>();
+		for (const row of rows) {
+			const indexName = String(row.Key_name ?? "");
+			if (indexName === "") continue;
+			const entry = grouped.get(indexName) ?? { columns: [], unique: true, type: typeof row.Index_type === "string" ? row.Index_type : undefined };
+			entry.columns.push({ seq: Number(row.Seq_in_index ?? 0), name: String(row.Column_name ?? "") });
+			entry.unique = entry.unique && Number(row.Non_unique ?? 1) === 0;
+			grouped.set(indexName, entry);
+		}
+		return [...grouped.entries()].map(([indexName, entry]) => ({
+			name: indexName,
+			columns: entry.columns.sort((a, b) => a.seq - b.seq).map((column) => column.name).filter(Boolean),
+			unique: entry.unique,
+			...(entry.type ? { type: entry.type } : {}),
+		}));
+	}
+
 	private getConfig(name: string): DbConnectionConfig {
 		this.ensureLoadedSync(true);
 		const config = this.configs.get(name);
@@ -797,9 +861,9 @@ export class DbConnectionRegistry {
 	}
 
 	/** Execute one approved INSERT or UPDATE and return affected rows. */
-	async executeWrite(name: string, sql: string): Promise<number> {
+	async executeWrite(name: string, sql: string, selectedDatabase?: string): Promise<number> {
 		assertDatabaseWriteSql(sql);
-		return this.queryWithReconnect(name, (handle) => handle.run(sql));
+		return this.queryWithReconnect(name, (handle) => handle.run(sql), selectedDatabase);
 	}
 
 	/**

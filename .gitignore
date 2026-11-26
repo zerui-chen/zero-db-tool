@@ -5,3 +5,4 @@ dist/
 preview/bundle.js
 preview/*.png
 .npmrc
+.test-token

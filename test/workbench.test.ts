@@ -18,6 +18,7 @@ beforeEach(async () => {
 	databaseFile = path.join(root, "app.db");
 	const db = new DatabaseSync(databaseFile);
 	db.exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)");
+	db.exec("CREATE INDEX idx_users_name ON users(name)");
 	db.exec("INSERT INTO users (name) VALUES ('ada'), ('lin')");
 	db.close();
 	registry = new DbConnectionRegistry(path.join(root, "config"));
@@ -81,6 +82,13 @@ describe("browse and schema", () => {
 		expect(page.hasNext).toBe(true);
 	});
 
+	it("lists indexes with columns and uniqueness", async () => {
+		const indexes = await service.indexes("main", "users");
+		const nameIndex = indexes.find((index) => index.name === "idx_users_name");
+		expect(nameIndex?.columns).toEqual(["name"]);
+		expect(nameIndex?.unique).toBe(false);
+	});
+
 	it("counts rows per table", async () => {
 		const stats = await service.stats("main");
 		expect(stats.tableCount).toBe(1);
@@ -118,6 +126,45 @@ describe("http api", () => {
 			const pageResponse = await (await fetch(`http://127.0.0.1:${port}/zero-db-tool/api/connections/main/browse?table=users&page=1&pageSize=1`)).json() as { result: { rows: unknown[]; hasNext: boolean } };
 			expect(pageResponse.result.rows).toHaveLength(1);
 			expect(pageResponse.result.hasNext).toBe(true);
+		} finally {
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		}
+	});
+
+	it("allows INSERT, challenges UPDATE once, and refuses DELETE", async () => {
+		const server = createServer((req, res) => {
+			void handleRequest(req, res, service, { trustedHosts: [], version: "0.1.0" });
+		});
+		await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+		const address = server.address();
+		const port = typeof address === "object" && address ? address.port : 0;
+		const endpoint = `http://127.0.0.1:${port}/zero-db-tool/api/connections/main/execute`;
+		const post = (body: Record<string, unknown>) => fetch(endpoint, {
+			method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+		});
+		try {
+			const insert = await post({ sql: "INSERT INTO users (name) VALUES ('new')" });
+			expect(insert.status).toBe(200);
+			const insertPayload = await insert.json() as { ok: boolean; result?: { affectedRows: number } };
+			expect(insertPayload.result?.affectedRows).toBe(1);
+
+			const deleted = await post({ sql: "DELETE FROM users" });
+			expect(deleted.status).toBe(400);
+			const deletedPayload = await deleted.json() as { ok: boolean; error?: { code?: string } };
+			expect(deletedPayload.ok).toBe(false);
+			expect(deletedPayload.error?.code).toBe("DB_READ_ONLY_VIOLATION");
+
+			const update = await post({ sql: "UPDATE users SET name = 'renamed' WHERE id = 1" });
+			const updatePayload = await update.json() as { ok: boolean; needsConfirmation?: boolean; challengeId?: string };
+			expect(updatePayload.needsConfirmation).toBe(true);
+			expect(typeof updatePayload.challengeId).toBe("string");
+
+			const confirmed = await post({ sql: "UPDATE users SET name = 'renamed' WHERE id = 1", confirmationId: updatePayload.challengeId });
+			const confirmedPayload = await confirmed.json() as { ok: boolean; result?: { affectedRows: number } };
+			expect(confirmedPayload.result?.affectedRows).toBe(1);
+
+			const replay = await post({ sql: "UPDATE users SET name = 'renamed' WHERE id = 1", confirmationId: updatePayload.challengeId });
+			expect(replay.status).toBe(400);
 		} finally {
 			await new Promise<void>((resolve) => server.close(() => resolve()));
 		}
