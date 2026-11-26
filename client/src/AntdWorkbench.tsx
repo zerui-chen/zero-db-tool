@@ -9,7 +9,7 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import type { DataNode } from "antd/es/tree";
 import {
-	ApartmentOutlined, ClearOutlined, CodeOutlined, CopyOutlined, DatabaseOutlined, DeleteOutlined, DownloadOutlined,
+	ApartmentOutlined, ClearOutlined, CodeOutlined, CopyOutlined, DatabaseOutlined, DeleteOutlined, DownOutlined, DownloadOutlined,
 	EditOutlined, EyeOutlined, MoreOutlined, PlayCircleOutlined, PlusOutlined, ProfileOutlined,
 	ReloadOutlined, SearchOutlined, TableOutlined, ThunderboltOutlined,
 } from "@ant-design/icons";
@@ -406,12 +406,14 @@ export function AntdWorkbench(): React.JSX.Element {
 					<div className="dbw-toolbar">
 						{databases.length > 1 ? (
 							<Select
+								popupClassName="dbw-sel-popup"
 								size="small" value={database || undefined} placeholder="数据库" style={{ width: 132 }}
 								onChange={(value) => void pickDatabase(value)}
 								options={databases.map((item) => ({ value: item, label: item === "" ? "(默认库)" : item }))}
 							/>
 						) : null}
 						<Select
+							popupClassName="dbw-sel-popup"
 							size="small" showSearch allowClear value={table || undefined} placeholder="选择表或视图"
 							style={{ flex: 1, minWidth: 140 }} optionFilterProp="label"
 							onChange={(value?: string) => { if (value) void loadTable(activeName, database, value); }}
@@ -540,7 +542,7 @@ export function AntdWorkbench(): React.JSX.Element {
 								</div>
 							</div>
 							<Space size={2}>
-								<Select size="small" variant="borderless" style={{ width: 76 }} value={pageSize}
+								<Select popupClassName="dbw-sel-popup" size="small" variant="borderless" style={{ width: 76 }} value={pageSize}
 									options={[20, 50, 100].map((size) => ({ value: size, label: size + "/页" }))}
 									onChange={(size) => { setPageSize(size); if (table) void loadTable(activeName, database, table, 1, size); }} />
 								<Tooltip title="刷新"><Button size="small" type="text" icon={<ReloadOutlined />} disabled={!table} onClick={() => void loadTable(activeName, database, table, page?.page ?? 1, pageSize)} /></Tooltip>
@@ -586,12 +588,32 @@ export function AntdWorkbench(): React.JSX.Element {
   </Space>
 </div>
 <div className="dbw-connbar">
-  <Select
-    size="middle" variant="filled" style={{ flex: 1, minWidth: 0 }} placeholder="选择连接"
-    value={activeName || undefined} onChange={(value) => void selectConnection(value)}
-    options={connections.map((connection) => ({ value: connection.name, label: connection.name + " · " + ENGINE[connection.engine].label }))}
-    notFoundContent={<Text type="secondary">还没有连接</Text>}
-  />
+  <Dropdown
+    trigger={["click"]}
+    placement="bottomLeft"
+    overlayClassName="dbw-conn-menu"
+    menu={{
+      style: { background: "var(--dbw-solid-bg, #ffffff)" },
+      selectedKeys: activeName ? [activeName] : [],
+      items: connections.map((connection) => ({
+        key: connection.name,
+        label: (
+          <Space size={8}>
+            <span>{connection.name}</span>
+            <Text type="secondary" style={{ fontSize: 11 }}>{ENGINE[connection.engine].label}</Text>
+          </Space>
+        ),
+      })),
+      onClick: ({ key }) => void selectConnection(key),
+    }}
+  >
+    <Button className="dbw-conn-trigger" size="middle">
+      <DatabaseOutlined />
+      <span className="dbw-conn-name">{active ? active.name : "选择连接"}</span>
+      <span className="dbw-conn-meta">{active ? ENGINE[active.engine].label : connections.length + " 个连接"}</span>
+      <DownOutlined className="dbw-conn-arrow" />
+    </Button>
+  </Dropdown>
   {active ? (
     <>
       <Tooltip title="测试连接"><Button size="small" type="text" icon={<ThunderboltOutlined />} onClick={() => void testConnection(active)} /></Tooltip>

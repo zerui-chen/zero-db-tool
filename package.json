@@ -1,6 +1,6 @@
 {
   "name": "zero-db-tool",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "DSH 数据库工作台：连接下拉 + 对象树 + 数据/结构/SQL，SQLite/PostgreSQL/MySQL，只读优先，六个 sql_* 工具",
   "type": "module",
   "license": "BSD-3-Clause",

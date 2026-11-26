@@ -5,7 +5,7 @@ import React, { useEffect } from "react";
 import { App as AntdApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { AntdWorkbench } from "./AntdWorkbench";
-import { isDarkTheme, resolveColor } from "./theme";
+import { isDarkTheme, opaqueColor, resolveColor } from "./theme";
 import css from "./workbench.css";
 
 const TAB_ID = "zero-db-tool";
@@ -23,11 +23,15 @@ function ensureStyle(): void {
 function Body(): React.JSX.Element {
 	useEffect(() => { ensureStyle(); }, []);
 	const dark = isDarkTheme();
+	const solidBackground = opaqueColor(resolveColor("--dsw-alias-bg-base", "#ffffff"), dark ? "#1b1b1b" : "#ffffff");
+	const solidLayer = opaqueColor(resolveColor("--dsw-alias-bg-layer-1", "#ffffff"), dark ? "#1b1b1b" : "#ffffff");
+	useEffect(() => { document.documentElement.style.setProperty("--dbw-solid-bg", solidBackground); }, [solidBackground]);
 	const token = {
 		colorPrimary: resolveColor("--dsw-alias-button-primary-fill", "#1677ff"),
 		colorInfo: resolveColor("--dsw-alias-state-business-primary", "#1677ff"),
-		colorBgBase: resolveColor("--dsw-alias-bg-base", "#ffffff"),
-		colorBgContainer: resolveColor("--dsw-alias-bg-layer-1", "#ffffff"),
+		colorBgBase: solidBackground,
+		colorBgContainer: solidLayer,
+		colorBgElevated: solidLayer,
 		colorText: resolveColor("--dsw-alias-label-primary", "#1a1a1a"),
 		colorTextSecondary: resolveColor("--dsw-alias-label-secondary", "#6b7280"),
 		colorBorder: resolveColor("--dsw-alias-border-l3", "#d9d9d9"),

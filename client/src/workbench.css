@@ -124,6 +124,26 @@
 .dbw-sql { height: 100%; overflow: auto; padding-right: 2px; }
 .dbw-grid-wrap { overflow: auto; }
 .dbw-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dbw-conn-trigger {
+	flex: 1; min-width: 0; height: 36px; padding: 0 10px;
+	display: flex; align-items: center; gap: 8px; justify-content: flex-start;
+}
+.dbw-conn-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dbw-conn-meta { font-size: 11px; color: var(--dsw-alias-label-secondary, #888); }
+.dbw-conn-arrow { margin-left: auto; opacity: 0.55; }
+/* 宿主对浮层的玻璃样式会让菜单透出内容，这里用不透明底色盖住。 */
+.dbw-conn-menu.ant-dropdown .ant-dropdown-menu {
+	background: var(--dbw-solid-bg, #ffffff) !important;
+	border: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	box-shadow: 0 12px 32px rgb(0 0 0 / 14%);
+}
+.dbw-conn-menu .ant-dropdown-menu-item { border-radius: 6px; }
+/* 数据页的数据库/表/每页条数下拉同样需要实色背景。 */
+.ant-select-dropdown.dbw-sel-popup.ant-select-dropdown {
+	background: var(--dbw-solid-bg, #ffffff) !important;
+	border: 1px solid var(--dsw-alias-border-l1, rgb(0 0 0 / 8%));
+	box-shadow: 0 12px 32px rgb(0 0 0 / 14%);
+}
 .dbw-nowrap { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dbw-confirm-sql {
 	margin: 8px 0 0; padding: 8px 10px; max-height: 180px; overflow: auto;
