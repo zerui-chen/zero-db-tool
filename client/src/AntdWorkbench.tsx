@@ -74,6 +74,7 @@ export function AntdWorkbench(): React.JSX.Element {
 	const [sql, setSql] = useState("");
 	const [result, setResult] = useState<TableResult | null>(null);
 	const [indexes, setIndexes] = useState<IndexSummary[]>([]);
+	const [probing, setProbing] = useState(false);
 
 	const [loading, setLoading] = useState("");
 	const [search, setSearch] = useState("");
@@ -121,15 +122,26 @@ export function AntdWorkbench(): React.JSX.Element {
 		});
 	}, []);
 
+	const refreshHealth = useCallback(async () => {
+		setProbing(true);
+		try {
+			const payload = await api.health();
+			const next: Record<string, Health> = {};
+			for (const item of payload.connections ?? []) next[item.name] = { ok: item.ok, ms: item.elapsedMs, message: item.message };
+			setHealth(next);
+		} catch { /* 探活失败不阻断连接列表 */ } finally { setProbing(false); }
+	}, []);
+
 	const loadConnections = useCallback(async () => {
 		setLoading("connections");
 		try {
 			const payload = await api.list();
 			setConnections(payload.connections ?? []);
+			void refreshHealth();
 		} catch (cause) {
 			message.error(cause instanceof Error ? cause.message : String(cause));
 		} finally { setLoading(""); }
-	}, [message]);
+	}, [message, refreshHealth]);
 
 	useEffect(() => { void loadConnections(); }, [loadConnections]);
 
@@ -595,20 +607,30 @@ export function AntdWorkbench(): React.JSX.Element {
     menu={{
       style: { background: "var(--dbw-solid-bg, #ffffff)" },
       selectedKeys: activeName ? [activeName] : [],
-      items: connections.map((connection) => ({
-        key: connection.name,
-        label: (
-          <Space size={8}>
-            <span>{connection.name}</span>
-            <Text type="secondary" style={{ fontSize: 11 }}>{ENGINE[connection.engine].label}</Text>
-          </Space>
-        ),
-      })),
+      items: connections.map((connection) => {
+        const status = health[connection.name];
+        return {
+          key: connection.name,
+          label: (
+            <div className="dbw-conn-item">
+              <span className={"dbw-status-dot " + (status ? (status.ok ? "ok" : "bad") : "unknown")} />
+              <div className="dbw-conn-item-text">
+                <span className="dbw-conn-item-name">{connection.name}</span>
+                <span className="dbw-conn-item-meta">
+                  {ENGINE[connection.engine].label}
+                  {status?.ok ? (status.ms !== undefined ? " · " + status.ms + "ms" : " · 可用") : status && !status.ok ? " · 不可用" : probing ? " · 检测中" : ""}
+                </span>
+              </div>
+            </div>
+          ),
+        };
+      }),
       onClick: ({ key }) => void selectConnection(key),
     }}
   >
     <Button className="dbw-conn-trigger" size="middle">
       <DatabaseOutlined />
+      {active ? <span className={"dbw-status-dot " + (health[active.name] ? (health[active.name]!.ok ? "ok" : "bad") : "unknown")} /> : null}
       <span className="dbw-conn-name">{active ? active.name : "选择连接"}</span>
       <span className="dbw-conn-meta">{active ? ENGINE[active.engine].label : connections.length + " 个连接"}</span>
       <DownOutlined className="dbw-conn-arrow" />

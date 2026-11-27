@@ -39,6 +39,13 @@ describe("connection registry", () => {
 		expect(JSON.stringify(listed)).not.toContain("password");
 	});
 
+	it("keeps a stable order after updating a connection", async () => {
+		await registry.add({ name: "second", engine: "sqlite", path: databaseFile });
+		const before = registry.list().map((item) => item.name);
+		await registry.update("main", { name: "main", engine: "sqlite", path: databaseFile });
+		expect(registry.list().map((item) => item.name)).toEqual(before);
+	});
+
 	it("reports a health probe", async () => {
 		const health = await service.health();
 		expect(health[0]?.ok).toBe(true);
@@ -60,6 +67,29 @@ describe("queries", () => {
 		const result = await service.execute("main", "INSERT INTO users (name) VALUES ('new')");
 		expect(result.affectedRows).toBe(1);
 		expect(service.needsApproval("INSERT INTO users (name) VALUES ('x')")).toBe(false);
+	});
+
+	it("reopens once when the mysql driver reports a closed connection", async () => {
+		let attempts = 0;
+		const handle = {
+			query: async () => {
+				attempts += 1;
+				if (attempts === 1) {
+					throw Object.assign(new Error("Can't add new command when connection is in closed state"), { code: "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR" });
+				}
+				return [{ n: 1 }];
+			},
+			run: async () => 0,
+			close: async () => undefined,
+		};
+		const fakeRegistry = {
+			connect: async () => handle,
+			evict: () => undefined,
+		};
+		const fakeService = new WorkbenchService(fakeRegistry as unknown as DbConnectionRegistry);
+		const result = await fakeService.query("main", "SELECT 1 AS n");
+		expect(attempts).toBe(2);
+		expect(result.rows[0]).toEqual({ n: 1 });
 	});
 
 	it("flags UPDATE batches for approval", () => {

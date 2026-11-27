@@ -73,6 +73,7 @@ export const api = {
 	execute: (name: string, sql: string, opts?: { database?: string; confirmationId?: string }) => request<ExecuteResponse>(
 		`/connections/${encodeURIComponent(name)}/execute`,
 		{ method: "POST", body: JSON.stringify({ sql, ...(opts?.database ? { database: opts.database } : {}), ...(opts?.confirmationId ? { confirmationId: opts.confirmationId } : {}) }) }),
+	health: () => request<{ connections: Array<{ name: string; engine: string; ok: boolean; elapsedMs?: number; code?: string; message?: string }> }>("/health"),
 	exportAll: () => request<{ document: ConnectionDocument }>("/export"),
 	importAll: (document: unknown, conflict: "skip" | "overwrite") => request<{ result: { imported: number; updated: number; skipped: number } }>(
 		"/import", { method: "POST", body: JSON.stringify({ document, conflict }) }),

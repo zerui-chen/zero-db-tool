@@ -18,6 +18,7 @@ import os from "node:os";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
+import { isDbConnectionLoss } from "./sql-guard.js";
 
 /** Atomic 0600 JSON write; the Console app-data helper is not available inside a DSH plugin. */
 async function writeSecureJson(filePath: string, value: unknown): Promise<void> {
@@ -650,7 +651,10 @@ export class DbConnectionRegistry {
 	/** Sanitized summaries — never includes any env var or password value. */
 	list(): DbConnectionSummary[] {
 		this.ensureLoadedSync(true);
-		return [...this.configs.values()].map((config) => this.summary(config));
+		// 稳定顺序：按创建时间，其次名称。Map 的插入顺序会因编辑（delete+set）变化。
+		return [...this.configs.values()]
+			.map((config) => this.summary(config))
+			.sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.name.localeCompare(right.name));
 	}
 
 	get(name: string): DbConnectionSummary | undefined {
@@ -890,7 +894,7 @@ export class DbConnectionRegistry {
 		try {
 			return await run(handle);
 		} catch (error) {
-			if (!isConnectionLossError(error)) throw error;
+			if (!isDbConnectionLoss(error)) throw error;
 			// Evict the dead cached handle and reopen once with the same config.
 			this.closeHandle(name);
 			const reopened = await this.connect(name, databaseOverride);
@@ -1049,29 +1053,6 @@ function decryptCredentialDocument(serialized: string, key: Buffer): EncryptedCr
 	const document = JSON.parse(plaintext.toString("utf8")) as EncryptedCredentialDocument;
 	if (document.version !== 1 || !isRecord(document.entries)) throw new Error("invalid encrypted credential entries");
 	return document;
-}
-
-/** Errors that mean the underlying server session is gone and a reopen may heal it. */
-function isConnectionLossError(error: unknown): boolean {
-	if (!error || typeof error !== "object") return false;
-	const err = error as { code?: unknown; message?: unknown; errno?: unknown };
-	const code = typeof err.code === "string" ? err.code.toUpperCase() : "";
-	const message = typeof err.message === "string" ? err.message : "";
-	if (
-		code === "ECONNRESET" ||
-		code === "EPIPE" ||
-		code === "ETIMEDOUT" ||
-		code === "ECONNREFUSED" ||
-		code === "PROTOCOL_CONNECTION_LOST" ||
-		code === "CONNECTION_LOST" ||
-		code === "57P01" || // postgres: admin_shutdown
-		code === "57P03" || // postgres: cannot_connect_now
-		code === "08003" || // SQLSTATE connection_does_not_exist
-		code === "08006"    // SQLSTATE connection_failure
-	) {
-		return true;
-	}
-	return /connection lost|connection (?:is )?closed|connection ended|connection terminated|server closed the connection unexpectedly|can[\'’]?t add new command when\s*connection is in closed state|closed state/i.test(message);
 }
 
 /** PostgreSQL driver adapter (`pg`). */

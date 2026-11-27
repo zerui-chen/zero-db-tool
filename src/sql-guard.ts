@@ -230,6 +230,12 @@ export function isDbConnectionLoss(error: unknown): boolean {
 	const err = error as { code?: unknown; message?: unknown };
 	const code = typeof err.code === "string" ? err.code.toUpperCase() : "";
 	const message = typeof err.message === "string" ? err.message : "";
-	if (["ECONNRESET", "EPIPE", "ETIMEDOUT", "PROTOCOL_CONNECTION_LOST", "CONNECTION_LOST", "57P01", "57P03", "08003", "08006"].includes(code)) return true;
-	return /connection lost|connection closed|connection ended|connection terminated|server closed the connection unexpectedly/i.test(message);
+	if ([
+		"ECONNRESET", "EPIPE", "ETIMEDOUT", "ECONNREFUSED",
+		"PROTOCOL_CONNECTION_LOST", "CONNECTION_LOST",
+		"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR", "PROTOCOL_ENQUEUE_AFTER_QUIT",
+		"ER_SERVER_SHUTDOWN",
+		"57P01", "57P03", "08003", "08006",
+	].includes(code)) return true;
+	return /connection lost|connection (?:is )?closed|connection ended|connection terminated|server closed the connection unexpectedly|closed state|can['’]?t add new command when\s*connection is in closed state/i.test(message);
 }

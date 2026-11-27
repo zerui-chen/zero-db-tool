@@ -3,6 +3,7 @@ import {
 	assertReadOnlyStatement,
 	assertSingleStatement,
 	assertWriteStatement,
+	isDbConnectionLoss,
 	splitStatements,
 	stripSqlComments,
 } from "../src/sql-guard.js";
@@ -11,6 +12,15 @@ describe("stripSqlComments", () => {
 	it("removes line and block comments but keeps literals", () => {
 		expect(stripSqlComments("SELECT '--not a comment' -- trailing\nFROM t")).toContain("'--not a comment'");
 		expect(stripSqlComments("SELECT 1 /* block */ FROM t").trim()).toBe("SELECT 1  FROM t");
+	});
+});
+
+describe("isDbConnectionLoss", () => {
+	it("recognizes mysql2 closed-connection errors", () => {
+		expect(isDbConnectionLoss({ message: "Can't add new command when connection is in closed state" })).toBe(true);
+		expect(isDbConnectionLoss({ message: "Connection is closed." })).toBe(true);
+		expect(isDbConnectionLoss({ code: "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR" })).toBe(true);
+		expect(isDbConnectionLoss(new Error("You have an error in your SQL syntax"))).toBe(false);
 	});
 });
 
